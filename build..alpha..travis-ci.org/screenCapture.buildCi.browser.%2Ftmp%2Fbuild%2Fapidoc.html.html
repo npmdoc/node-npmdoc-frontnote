@@ -1,0 +1,241 @@
+<html><head></head><body><div class="apidocDiv">
+<style>
+/*csslint
+*/
+.apidocDiv {
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+}
+.apidocDiv a[href] {
+    color: #33f;
+    font-weight: bold;
+    text-decoration: none;
+}
+.apidocDiv a[href]:hover {
+    text-decoration: underline;
+}
+.apidocCodeCommentSpan {
+    background: #bbf;
+    color: #000;
+    display: block;
+}
+.apidocCodeKeywordSpan {
+    color: #d00;
+    font-weight: bold;
+}
+.apidocCodePre {
+    background: #eef;
+    border: 1px solid;
+    color: #777;
+    padding: 5px;
+    white-space: pre-wrap;
+}
+.apidocFooterDiv {
+    margin-top: 20px;
+    text-align: center;
+}
+.apidocModuleLi {
+    margin-top: 10px;
+}
+.apidocSectionDiv {
+    border-top: 1px solid;
+    margin-top: 20px;
+}
+.apidocSignatureSpan {
+    color: #777;
+    font-weight: bold;
+}
+</style>
+<h1>api documentation for
+    <a href="https://github.com/frontainer/frontnote">frontnote (v2.0.5)</a>
+</h1>
+<h4>StyleGuide Generator FrontNote</h4>
+<div class="apidocSectionDiv"><a href="#apidoc.tableOfContents" id="apidoc.tableOfContents"><h1>table of contents</h1></a><ol>
+
+    <li class="apidocModuleLi"><a href="#apidoc.module.frontnote">module frontnote</a><ol>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.frontnote.frontnote">
+            function <span class="apidocSignatureSpan"></span>frontnote
+            <span class="apidocSignatureSpan">(option)</span>
+            </a>
+
+        </li>
+
+        <li>
+
+            <span class="apidocSignatureSpan">object <span class="apidocSignatureSpan">frontnote.</span>template_helper</span>
+
+        </li>
+
+    </ol></li>
+
+    <li class="apidocModuleLi"><a href="#apidoc.module.frontnote.template_helper">module frontnote.template_helper</a><ol>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.frontnote.template_helper.hasAttribute">
+            function <span class="apidocSignatureSpan">frontnote.template_helper.</span>hasAttribute
+            <span class="apidocSignatureSpan">(attributes, attr)</span>
+            </a>
+
+        </li>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.frontnote.template_helper.isCurrent">
+            function <span class="apidocSignatureSpan">frontnote.template_helper.</span>isCurrent
+            <span class="apidocSignatureSpan">(current, file)</span>
+            </a>
+
+        </li>
+
+    </ol></li>
+
+</ol></div>
+
+<div class="apidocSectionDiv">
+<h1><a href="#apidoc.module.frontnote" id="apidoc.module.frontnote">module frontnote</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.frontnote.frontnote" id="apidoc.element.frontnote.frontnote">
+        function <span class="apidocSignatureSpan"></span>frontnote
+        <span class="apidocSignatureSpan">(option)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">class FrontNote {
+    constructor(option) {
+        this.options = extend({},DEFAULT_OPTIONS,option);
+        this.options.out = path.resolve(this.options.out);
+        this.Parser = new Parser();
+    }
+
+<span class="apidocCodeCommentSpan">    /**
+     * render styleguide
+     * @param target{String|Array}
+     * @returns {Observable&lt;T&gt;}
+     */
+</span>    render(target) {
+        const spinner = ora('Loading files...').start();
+        let list = typeof target === 'string' ? glob.sync(target) : target.reduce((previous,current) =&gt; {
+            return previous.concat(glob.sync(current));
+        },[]);
+        let obs = this.readFiles(list).map((files) =&gt; {
+            spinner.text = 'Parsing files...';
+            return this.parseFiles(files);
+        }).flatMap((parsedFiles) =&gt; {
+            spinner.text = 'Generating StyleGuide...';
+            return this.createStyleGuide(parsedFiles);
+        }).share();
+        obs.take(1).subscribe((result) =&gt; {
+            if (this.options.verbose) {
+                result.forEach((filepath) =&gt; {
+                    console.log(chalk.green(`[w] ${filepath}`));
+                });
+            }
+            spinner.text = 'Generated StyleGuide';
+            spinner.succeed();
+        });
+        return obs;
+    }
+    readFiles(fileList) {
+        const observers = fileList.map((filepath) =&gt; {
+            const readFileAsObservable = Rx.Observable.bindNodeCallback(fs.readFile);
+            return readFileAsObservable(filepath, 'utf8').map((data) =&gt; {
+                return {
+                    file: filepath,
+                    content: data
+                };
+            });
+        });
+        if (observers.length === 0) {
+            return Rx.Observable.create(observer =&gt; {
+                observer.next([]);
+            });
+        }
+        return Rx.Observable.combineLatest(observers);
+    }
+    parseFiles(files) {
+        return files.map((fileData) =&gt; {
+            const value = this.Parser.parse(fileData.file,fileData.content);
+            if (value) {
+                return value;
+            }
+        }).filter((v) =&gt; {
+            return (v !== undefined);
+        });
+    }
+    /**
+     * ã‚¹ã‚¿ã‚¤ãƒ«ã‚¬ã‚¤ãƒ‰ä½œæˆ
+     * @param data
+     */
+    createStyleGuide(data) {
+        return Rx.Observable.create(observer =&gt; {
+            const gen = new Generator(data,this.options);
+            gen.generate().subscribe(result =&gt; {
+                let cwd = process.cwd();
+                result = Array.prototype.concat.apply([],result).filter((v) =&gt; {
+                    return (v);
+                }).map((v) =&gt; {
+                    return path.relative(cwd,v);
+                });
+                observer.next(result);
+            },(e) =&gt; {
+                observer.error(e);
+            });
+        });
+    }
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">n/a</pre></li>
+    </ul>
+
+
+
+
+</div>
+
+<div class="apidocSectionDiv">
+<h1><a href="#apidoc.module.frontnote.template_helper" id="apidoc.module.frontnote.template_helper">module frontnote.template_helper</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.frontnote.template_helper.hasAttribute" id="apidoc.element.frontnote.template_helper.hasAttribute">
+        function <span class="apidocSignatureSpan">frontnote.template_helper.</span>hasAttribute
+        <span class="apidocSignatureSpan">(attributes, attr)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">hasAttribute(attributes, attr) {
+    return (attributes.indexOf(attr) !== -1);
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">n/a</pre></li>
+    </ul>
+
+
+
+    <h2>
+        <a href="#apidoc.element.frontnote.template_helper.isCurrent" id="apidoc.element.frontnote.template_helper.isCurrent">
+        function <span class="apidocSignatureSpan">frontnote.template_helper.</span>isCurrent
+        <span class="apidocSignatureSpan">(current, file)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">isCurrent(current, file) {
+    return (current.file === file.file);
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">n/a</pre></li>
+    </ul>
+
+
+</div>
+
+<div class="apidocFooterDiv">
+    [ this document was created with
+    <a href="https://github.com/kaizhu256/node-utility2" target="_blank">utility2</a>
+    ]
+</div>
+</div>
+</body></html>
